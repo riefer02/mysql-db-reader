@@ -11,6 +11,7 @@
     "start": "node dist/http.js"
   },
   "dependencies": {
+    "mysql2": "^3.14.3",
     "xmcp": "^0.1.9",
     "zod": "3.24.4"
   },
