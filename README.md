@@ -44,16 +44,36 @@ Add to your `mcp.json` (use an absolute path to `dist/stdio.js`):
 pnpm dev
 ```
 
-Then point your MCP client to `http://localhost:3002/mcp` and provide the same env var.
+Then point your MCP client to `http://localhost:3002/mcp`.
+
+To use a different port (e.g., 3001):
+
+```bash
+export MYSQL_URL="mysql://user:password@localhost:3306/mydb"
+PORT=3001 pnpm dev
+```
+
+Example HTTP client config (TOML):
+
+```toml
+[mcp_servers.mysql-reader]
+transport = "http"
+url = "http://127.0.0.1:3001/mcp"
+project = "/ABSOLUTE/PATH/TO/your/project"
+```
 
 ### Tools
 
-- `mysql.listDatabases(includeSystem=false)` — list databases
-- `mysql.listTables(database, includeViews=true)` — list tables/views
-- `mysql.getTableSchema(database, table)` — columns/constraints/indexes
-- `mysql.previewTable(database, table, limit=50, orderBy?)` — sample rows
-- `mysql.query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH)
-- `mysql.explainQuery(sql)` — EXPLAIN a SELECT
+- `mysql_listDatabases(includeSystem=false)` — list databases
+- `mysql_listTables(database, includeViews=true)` — list tables/views
+- `mysql_getTableSchema(database, table)` — columns/constraints/indexes
+- `mysql_previewTable(database, table, limit=50, orderBy?)` — sample rows
+- `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH)
+- `mysql_explainQuery(sql)` — EXPLAIN a SELECT
+
+### Codex compatibility
+
+Tool names use underscores (not dots) to comply with Codex's tool name pattern `^[a-zA-Z0-9_-]+$`. See: [MCP in Codex docs](https://github.com/openai/codex/blob/main/docs/advanced.md#model-context-protocol-mcp)
 
 Read-only is enforced via session settings and SQL guards.
 

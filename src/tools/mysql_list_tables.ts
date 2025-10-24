@@ -12,7 +12,7 @@ export const schema = {
 };
 
 export const metadata: ToolMetadata = {
-  name: "mysql.listTables",
+  name: "mysql_listTables",
   description: "List tables (and optionally views) in a database",
   annotations: {
     title: "MySQL: List tables",

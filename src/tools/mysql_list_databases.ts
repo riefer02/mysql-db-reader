@@ -12,7 +12,7 @@ export const schema = {
 };
 
 export const metadata: ToolMetadata = {
-  name: "mysql.listDatabases",
+  name: "mysql_listDatabases",
   description: "List available databases (schemas) on the MySQL server",
   annotations: {
     title: "MySQL: List databases",

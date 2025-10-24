@@ -23,7 +23,7 @@ export const schema = {
 };
 
 export const metadata: ToolMetadata = {
-  name: "mysql.previewTable",
+  name: "mysql_previewTable",
   description: "Preview first N rows from a table with optional ordering",
   annotations: {
     title: "MySQL: Preview table",

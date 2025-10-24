@@ -19,7 +19,7 @@ export const schema = {
 };
 
 export const metadata: ToolMetadata = {
-  name: "mysql.query",
+  name: "mysql_query",
   description: "Run a read-only SQL query with optional positional parameters",
   annotations: {
     title: "MySQL: Query (read-only)",
