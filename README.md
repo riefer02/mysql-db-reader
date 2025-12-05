@@ -64,16 +64,16 @@ project = "/ABSOLUTE/PATH/TO/your/project"
 
 ### Tools
 
-- `mysql_listDatabases(includeSystem=false)` — list databases
-- `mysql_listTables(database, includeViews=true)` — list tables/views
-- `mysql_getTableSchema(database, table)` — columns/constraints/indexes
-- `mysql_previewTable(database, table, limit=50, orderBy?)` — sample rows
+- `mysql_list_databases(includeSystem=false)` — list databases
+- `mysql_list_tables(database, includeViews=true)` — list tables/views
+- `mysql_get_table_schema(database, table)` — columns/constraints/indexes
+- `mysql_preview_table(database, table, limit=50, orderBy?)` — sample rows
 - `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH)
-- `mysql_explainQuery(sql)` — EXPLAIN a SELECT
+- `mysql_explain_query(sql)` — EXPLAIN a SELECT
 
 ### Codex compatibility
 
-Tool names use underscores (not dots) to comply with Codex's tool name pattern `^[a-zA-Z0-9_-]+$`. See: [MCP in Codex docs](https://github.com/openai/codex/blob/main/docs/advanced.md#model-context-protocol-mcp)
+Tool names use lowercase snake_case (underscores, no dots) to comply with Codex's tool name pattern `^[a-zA-Z0-9_-]+$` (Codex models prefer lower_snake). See: [MCP in Codex docs](https://github.com/openai/codex/blob/main/docs/advanced.md#model-context-protocol-mcp)
 
 Read-only is enforced via session settings and SQL guards.
 

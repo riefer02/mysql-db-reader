@@ -15,7 +15,7 @@ export const schema = {
 };
 
 export const metadata: ToolMetadata = {
-  name: "mysql_explainQuery",
+  name: "mysql_explain_query",
   description: "Run EXPLAIN on a SELECT to show the query plan",
   annotations: {
     title: "MySQL: Explain query",
