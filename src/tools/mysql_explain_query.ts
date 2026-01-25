@@ -16,12 +16,14 @@ export const schema = {
 
 export const metadata: ToolMetadata = {
   name: "mysql_explain_query",
-  description: "Run EXPLAIN on a SELECT to show the query plan",
+  description:
+    "Run EXPLAIN on a SELECT query to show the query execution plan. Use this to analyze query performance and identify missing indexes.",
   annotations: {
     title: "MySQL: Explain query",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
+    openWorldHint: false,
   },
 };
 

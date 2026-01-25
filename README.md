@@ -68,7 +68,7 @@ project = "/ABSOLUTE/PATH/TO/your/project"
 - `mysql_list_tables(database, includeViews=true)` — list tables/views
 - `mysql_get_table_schema(database, table)` — columns/constraints/indexes
 - `mysql_preview_table(database, table, limit=50, orderBy?)` — sample rows
-- `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH)
+- `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH), max 10k rows
 - `mysql_explain_query(sql)` — EXPLAIN a SELECT
 
 ### Codex compatibility

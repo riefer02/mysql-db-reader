@@ -24,19 +24,22 @@ export const schema = {
 
 export const metadata: ToolMetadata = {
   name: "mysql_preview_table",
-  description: "Preview first N rows from a table with optional ordering",
+  description:
+    "Preview first N rows from a table with optional ordering. Use this to quickly inspect sample data without writing SQL.",
   annotations: {
     title: "MySQL: Preview table",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
+    openWorldHint: false,
   },
 };
 
 function buildOrderBy(orderBy?: string): string | null {
-  if (!orderBy) return null;
+  if (!orderBy || !orderBy.trim()) return null;
   const parts = orderBy.trim().split(/\s+/);
   const column = parts[0];
+  if (!column) return null;
   const dir = (parts[1] || "ASC").toUpperCase();
   assertSafeIdentifier(column, "column");
   if (dir !== "ASC" && dir !== "DESC")

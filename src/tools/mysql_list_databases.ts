@@ -13,12 +13,14 @@ export const schema = {
 
 export const metadata: ToolMetadata = {
   name: "mysql_list_databases",
-  description: "List available databases (schemas) on the MySQL server",
+  description:
+    "List available databases (schemas) on the MySQL server. Use this first to discover what databases exist before querying tables.",
   annotations: {
     title: "MySQL: List databases",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
+    openWorldHint: false,
   },
 };
 

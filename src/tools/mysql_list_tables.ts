@@ -13,12 +13,14 @@ export const schema = {
 
 export const metadata: ToolMetadata = {
   name: "mysql_list_tables",
-  description: "List tables (and optionally views) in a database",
+  description:
+    "List tables (and optionally views) in a database. Use this after mysql_list_databases to discover available tables before querying or inspecting schema.",
   annotations: {
     title: "MySQL: List tables",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
+    openWorldHint: false,
   },
 };
 

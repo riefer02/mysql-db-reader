@@ -13,12 +13,14 @@ export const schema = {
 
 export const metadata: ToolMetadata = {
   name: "mysql_get_table_schema",
-  description: "Get table column definitions, primary key, and constraints",
+  description:
+    "Get table column definitions, primary key, indexes, and constraints. Use this to understand table structure before writing queries.",
   annotations: {
     title: "MySQL: Get table schema",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
+    openWorldHint: false,
   },
 };
 
