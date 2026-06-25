@@ -41,44 +41,22 @@ export async function withReadOnlyConnection<T>(
   const p = getReadOnlyPool();
   const conn = await p.getConnection();
   try {
-    // Harden session to be read-only where supported
-    // MySQL: SET SESSION TRANSACTION READ ONLY affects next transactions; we still set sql_safe_updates
     await conn.query("SET SESSION SQL_SAFE_UPDATES = 1");
-    await conn.query("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED");
-    // Not all MySQL variants accept the following; ignore errors silently
+    // START TRANSACTION READ ONLY enforces read-only at the engine level for this operation.
+    // Supported since MySQL 5.6 / MariaDB 10.0.
+    await conn.query("START TRANSACTION READ ONLY");
     try {
-      await conn.query("SET SESSION TRANSACTION READ ONLY");
-    } catch {}
-    return await fn(conn);
+      const result = await fn(conn);
+      await conn.query("ROLLBACK");
+      return result;
+    } catch (err) {
+      await conn.query("ROLLBACK");
+      throw err;
+    }
   } finally {
     conn.release();
   }
 }
-
-const FORBIDDEN_START = [
-  "insert",
-  "update",
-  "delete",
-  "replace",
-  "alter",
-  "create",
-  "drop",
-  "truncate",
-  "rename",
-  "grant",
-  "revoke",
-  "call",
-  "load",
-  "lock",
-  "unlock",
-  "optimize",
-  "analyze",
-  "repair",
-  "flush",
-  "reset",
-  "kill",
-  "set",
-];
 
 export function assertReadOnlySql(sql: string): void {
   const normalized = sql.trim().toLowerCase();
@@ -98,17 +76,16 @@ export function assertReadOnlySql(sql: string): void {
       )}`
     );
   }
-  for (const f of FORBIDDEN_START) {
-    if (normalized.startsWith(f + " ")) {
-      throw new Error("Mutation statements are not allowed.");
-    }
+  // Block SELECT INTO OUTFILE / DUMPFILE which can write server-side files.
+  if (/\binto\s+(outfile|dumpfile)\b/.test(normalized)) {
+    throw new Error("SELECT INTO OUTFILE/DUMPFILE is not allowed.");
   }
-  // Basic guard for WITH used with DML (not exhaustive)
+  // For CTEs (WITH), the terminal statement must be a SELECT with no DML.
   if (firstWord === "with") {
     const lowered = normalized.replace(/\s+/g, " ");
     if (
       !/\bselect\b/.test(lowered) ||
-      /\b(insert|update|delete)\b/.test(lowered)
+      /\b(insert|update|delete|replace)\b/.test(lowered)
     ) {
       throw new Error(
         "WITH queries must be read-only and include SELECT only."
