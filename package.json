@@ -1,12 +1,21 @@
 {
-  "name": "mysql-reader",
+  "name": "mysql-db-reader",
   "version": "0.1.0",
-  "description": "An xmcp application with tool syntax",
+  "description": "Read-only MySQL MCP server — list databases/tables, inspect schemas, run SELECT queries",
+  "license": "MIT",
   "engines": {
     "node": ">=20.0.0"
   },
+  "bin": {
+    "mysql-db-reader": "dist/stdio.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "xmcp build",
+    "postbuild": "node -e \"const fs=require('fs'),f='dist/stdio.js',c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\" && chmod +x dist/stdio.js",
     "dev": "xmcp dev",
     "start": "node dist/http.js"
   },

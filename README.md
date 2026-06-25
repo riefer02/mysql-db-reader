@@ -24,14 +24,28 @@ export MYSQL_URL="mysql://user:password@localhost:3306/mydb"
 
 ### Use in Cursor (STDIO)
 
-Add to your `mcp.json` (use an absolute path to `dist/stdio.js`):
+**Via npx** (after publishing to npm — no local clone needed):
+
+```json
+{
+  "mcpServers": {
+    "mysql-reader": {
+      "command": "npx",
+      "args": ["-y", "mysql-db-reader"],
+      "env": { "MYSQL_URL": "mysql://user:password@host:3306/db" }
+    }
+  }
+}
+```
+
+**Local build** (after `pnpm build`):
 
 ```json
 {
   "mcpServers": {
     "mysql-reader": {
       "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/mysql-reader/dist/stdio.js"],
+      "args": ["/ABSOLUTE/PATH/TO/mysql-db-reader/dist/stdio.js"],
       "env": { "MYSQL_URL": "mysql://user:password@host:3306/db" }
     }
   }
