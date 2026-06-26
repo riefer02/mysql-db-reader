@@ -20,14 +20,17 @@ function getConnectionString(): string {
   );
 }
 
+const QUERY_TIMEOUT_MS = 30_000;
+
 export function getReadOnlyPool(): Pool {
   if (pool) return pool;
   const connectionString = getConnectionString();
   pool = mysql.createPool({
     uri: connectionString,
-    connectionLimit: 10,
+    connectionLimit: 3,         // sequential AI tool — 3 is plenty
+    connectTimeout: 10_000,     // fail fast if DB is unreachable
     waitForConnections: true,
-    queueLimit: 0,
+    queueLimit: 5,              // fail fast beyond 5 queued; 0 = unbounded
     enableKeepAlive: true,
     keepAliveInitialDelay: 5_000,
     namedPlaceholders: true,
@@ -40,6 +43,13 @@ export async function withReadOnlyConnection<T>(
 ): Promise<T> {
   const p = getReadOnlyPool();
   const conn = await p.getConnection();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    // destroy() closes the socket and removes the connection from the pool,
+    // freeing the slot even if the DB is unresponsive.
+    conn.destroy();
+  }, QUERY_TIMEOUT_MS);
   try {
     await conn.query("SET SESSION SQL_SAFE_UPDATES = 1");
     // START TRANSACTION READ ONLY enforces read-only at the engine level for this operation.
@@ -47,14 +57,17 @@ export async function withReadOnlyConnection<T>(
     await conn.query("START TRANSACTION READ ONLY");
     try {
       const result = await fn(conn);
+      clearTimeout(timer);
       await conn.query("ROLLBACK");
       return result;
     } catch (err) {
-      await conn.query("ROLLBACK");
+      if (timedOut) throw new Error(`Query timed out after ${QUERY_TIMEOUT_MS / 1000}s`);
+      try { await conn.query("ROLLBACK"); } catch {}
       throw err;
     }
   } finally {
-    conn.release();
+    clearTimeout(timer);
+    if (!timedOut) conn.release();
   }
 }
 
