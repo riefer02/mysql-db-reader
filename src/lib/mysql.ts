@@ -25,6 +25,15 @@ const QUERY_TIMEOUT_MS = 30_000;
 export function getReadOnlyPool(): Pool {
   if (pool) return pool;
   const connectionString = getConnectionString();
+  // MYSQL_SSL controls TLS behavior:
+  //   "true"   (default) — encrypt but skip cert hostname validation (use when connecting through a tunnel or proxy)
+  //   "strict"           — encrypt and validate the server certificate (direct connections with valid cert)
+  //   "false"            — no SSL (local dev only)
+  const mysqlSsl = (process.env.MYSQL_SSL ?? "true").toLowerCase();
+  const ssl =
+    mysqlSsl === "false"  ? undefined :
+    mysqlSsl === "strict" ? { rejectUnauthorized: true } :
+                            { rejectUnauthorized: false };
   pool = mysql.createPool({
     uri: connectionString,
     connectionLimit: 3,         // sequential AI tool — 3 is plenty
@@ -34,6 +43,7 @@ export function getReadOnlyPool(): Pool {
     enableKeepAlive: true,
     keepAliveInitialDelay: 5_000,
     namedPlaceholders: true,
+    ssl,
   } as any);
   return pool;
 }

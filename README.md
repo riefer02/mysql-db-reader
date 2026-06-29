@@ -22,6 +22,20 @@ Set one of (first found wins): `MYSQL_URL`, `MYSQL_CONNECTION_STRING`, or `DATAB
 export MYSQL_URL="mysql://user:password@localhost:3306/mydb"
 ```
 
+**SSL** is controlled by `MYSQL_SSL` (default: `"true"`):
+
+| Value | Behavior |
+|---|---|
+| `true` (default) | Encrypted, skips cert hostname validation — use when connecting through a tunnel or proxy |
+| `strict` | Encrypted, validates server certificate — use for direct connections with a valid cert |
+| `false` | No SSL — local dev only |
+
+```bash
+export MYSQL_SSL=true    # tunnel / hosted DB (default)
+export MYSQL_SSL=strict  # direct connection, valid cert
+export MYSQL_SSL=false   # local dev, no SSL
+```
+
 ### Use in Cursor (STDIO)
 
 **Via npx** (after publishing to npm — no local clone needed):
