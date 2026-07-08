@@ -43,6 +43,10 @@ export function getReadOnlyPool(): Pool {
     enableKeepAlive: true,
     keepAliveInitialDelay: 5_000,
     namedPlaceholders: true,
+    // Defense-in-depth: never allow ;-stacked statements (e.g. "SELECT 1; DELETE ...").
+    // This is the mysql2 default, but we pin it so a future change can't silently open
+    // the door to stacked-query injection.
+    multipleStatements: false,
     ssl,
   } as any);
   return pool;
@@ -81,8 +85,24 @@ export async function withReadOnlyConnection<T>(
   }
 }
 
+// Neutralize comment-based obfuscation before running read-only checks.
+// MySQL *executes* the contents of executable comments (/*! ... */), and an inline
+// comment can sit between tokens (e.g. INTO/**/OUTFILE), so a naive keyword/whitespace
+// regex on the raw SQL is bypassable. We unwrap executable comments (keep their SQL) and
+// strip ordinary comments, so the assertions below see the SQL the server actually runs.
+function stripSqlComments(sql: string): string {
+  return sql
+    // Unwrap executable comments: keep inner SQL, drop the /*! [version] and */ markers.
+    .replace(/\/\*!(?:\d+)?([\s\S]*?)\*\//g, " $1 ")
+    // Remove ordinary block comments entirely.
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    // Remove line comments ("-- " to EOL, and "#" to EOL).
+    .replace(/--\s[^\n]*/g, " ")
+    .replace(/#[^\n]*/g, " ");
+}
+
 export function assertReadOnlySql(sql: string): void {
-  const normalized = sql.trim().toLowerCase();
+  const normalized = stripSqlComments(sql).trim().toLowerCase();
   const firstWord = normalized.split(/\s+/)[0] ?? "";
   const allowedFirst = [
     "select",
