@@ -27,6 +27,8 @@ const config: XmcpConfig = {
     },
   },
   stdio: true,
+  // This server exposes tools only.
+  paths: { tools: "./src/tools", prompts: false, resources: false },
 };
 
 export default config;

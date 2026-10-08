@@ -16,6 +16,8 @@ pnpm test        # unit tests (integration tests self-skip without a DB)
 pnpm typecheck
 ```
 
+Built with `xmcp` v1 (runtime) and `@xmcp-dev/compiler` (build-time, dev dependency).
+
 ### Configure database connection
 
 Set one of (first found wins): `MYSQL_URL`, `MYSQL_CONNECTION_STRING`, or `DATABASE_URL`.

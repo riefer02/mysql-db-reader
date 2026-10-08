@@ -25,7 +25,7 @@ export MYSQL_URL="mysql://user:password@localhost:3306/mydb"
 
 ## Architecture
 
-This is an MCP (Model Context Protocol) server built with `xmcp` that provides read-only MySQL database access tools.
+This is an MCP (Model Context Protocol) server built with `xmcp` (v1) that provides read-only MySQL database access tools. `xmcp` is the runtime; `@xmcp-dev/compiler` is the dev-time build dependency that discovers tools and produces `dist/`.
 
 ### Project Structure
 
@@ -33,7 +33,7 @@ This is an MCP (Model Context Protocol) server built with `xmcp` that provides r
 - `src/lib/sql.ts` - Pure, DB-independent helpers (SQL guard, identifier check, row coercion, order-by, result shaping, pool config). Unit-tested.
 - `src/lib/mysql.ts` - Shared MySQL connection pool, session hardening, and timeout wrapper; re-exports `src/lib/sql.ts`.
 - `test/` - Vitest unit tests; `test/integration.test.ts` self-skips unless `MYSQL_TEST_URL` is set
-- `xmcp.config.ts` - xmcp configuration (HTTP on loopback + STDIO transports)
+- `xmcp.config.ts` - xmcp configuration (HTTP on loopback + STDIO transports; `paths.prompts`/`paths.resources` are disabled since this server exposes only tools)
 - `dist/stdio.js` - Built STDIO entry point for Cursor/CLI MCP clients
 - `dist/http.js` - Built HTTP entry point
 
