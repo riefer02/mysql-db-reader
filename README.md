@@ -47,6 +47,7 @@ Optional tuning (all have safe defaults):
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `MYSQL_QUERY_TIMEOUT_MS` | `30000` | Per-request time limit; the connection is dropped if exceeded |
+| `MYSQL_MAX_ROWS` | `10000` | Row cap for `mysql_query`; the query is aborted once exceeded |
 | `MYSQL_CONNECTION_LIMIT` | `3` | Max pooled connections |
 | `MYSQL_QUEUE_LIMIT` | `5` | Max requests waiting for a connection (bounded) |
 | `MYSQL_IDLE_TIMEOUT_MS` | `60000` | Idle connection timeout |
@@ -115,7 +116,7 @@ project = "/ABSOLUTE/PATH/TO/your/project"
 - `mysql_list_tables(database, includeViews=true)` — list tables/views
 - `mysql_get_table_schema(database, table)` — columns/constraints/indexes
 - `mysql_preview_table(database, table, limit=50, orderBy?)` — sample rows
-- `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH), max 10k rows
+- `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH), streamed with a 10k row cap
 - `mysql_explain_query(sql)` — EXPLAIN a SELECT
 
 ### Safety
@@ -135,8 +136,9 @@ Read-only access is enforced in layers:
    on release to avoid session-state bleed.
 4. **Account grants** — point the server at a `SELECT`-only MySQL user.
 
-The `mysql_query` row cap (10,000) is applied after rows are fetched, so always
-add a `LIMIT` to queries against large tables.
+The `mysql_query` row cap (default 10,000, set `MYSQL_MAX_ROWS` to change) is
+enforced while **streaming**: once the cap is exceeded the query is aborted, so
+the remaining rows are never fetched from the server.
 
 ### Tests
 

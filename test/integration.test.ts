@@ -105,17 +105,69 @@ describe.skipIf(!hasDb)("integration (requires MYSQL_TEST_URL)", () => {
   });
 
   it("aborts queries that exceed the time limit", async () => {
-    const previous = process.env.MYSQL_QUERY_TIMEOUT_MS;
-    process.env.MYSQL_QUERY_TIMEOUT_MS = "800";
+    // Override the wall-clock budget while leaving the server-side
+    // MAX_EXECUTION_TIME at its (larger) default, so this exercises the
+    // client-side abort rather than the server one.
+    const started = Date.now();
+    await expect(
+      withReadOnlyConnection((conn) => conn.query("SELECT SLEEP(5)"), {
+        timeoutMs: 800,
+      })
+    ).rejects.toThrow(/time limit|maximum statement execution time/i);
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
+  it("caps rows server-side and reports truncation", async () => {
+    const previous = process.env.MYSQL_MAX_ROWS;
+    process.env.MYSQL_MAX_ROWS = "2";
+    try {
+      const result = payload(
+        await query({
+          sql: "SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3",
+          params: [],
+        })
+      );
+      expect(result.truncated).toBe(true);
+      expect(result.rowsReturned).toBe(2);
+      expect(result.maxRows).toBe(2);
+      expect(result.rows).toHaveLength(2);
+    } finally {
+      if (previous === undefined) delete process.env.MYSQL_MAX_ROWS;
+      else process.env.MYSQL_MAX_ROWS = previous;
+    }
+  });
+
+  it("handles joins with duplicate column names", async () => {
+    // A naive `SELECT * FROM (query) LIMIT n` wrap would fail here with
+    // "Duplicate column name"; streaming does not.
+    const rows = payload(
+      await query({
+        sql: "SELECT a.column_name AS c, b.column_name AS c FROM information_schema.columns a JOIN information_schema.columns b ON a.ordinal_position = b.ordinal_position LIMIT 2",
+        params: [],
+      })
+    );
+    expect(Array.isArray(rows)).toBe(true);
+  });
+
+  it("aborts a large result set early instead of fetching it all", async () => {
+    const previous = process.env.MYSQL_MAX_ROWS;
+    process.env.MYSQL_MAX_ROWS = "5";
     try {
       const started = Date.now();
-      await expect(
-        withReadOnlyConnection((conn) => conn.query("SELECT SLEEP(5)"))
-      ).rejects.toThrow(/time limit|maximum statement execution time/i);
+      // Cross join of information_schema.columns is huge; returning quickly
+      // proves the stream was aborted at the cap.
+      const result = payload(
+        await query({
+          sql: "SELECT c1.table_name FROM information_schema.columns c1 JOIN information_schema.columns c2",
+          params: [],
+        })
+      );
+      expect(result.truncated).toBe(true);
+      expect(result.rowsReturned).toBe(5);
       expect(Date.now() - started).toBeLessThan(3_000);
     } finally {
-      if (previous === undefined) delete process.env.MYSQL_QUERY_TIMEOUT_MS;
-      else process.env.MYSQL_QUERY_TIMEOUT_MS = previous;
+      if (previous === undefined) delete process.env.MYSQL_MAX_ROWS;
+      else process.env.MYSQL_MAX_ROWS = previous;
     }
   });
 });

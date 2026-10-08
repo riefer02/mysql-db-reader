@@ -52,7 +52,7 @@ All database access is read-only, enforced in layers:
 3. Session hardening in `withReadOnlyConnection()`: `SQL_SAFE_UPDATES=1`, READ COMMITTED, `TRANSACTION READ ONLY`, and `MAX_EXECUTION_TIME` (all best-effort).
 4. Wall-clock timeout drops the connection if a request exceeds `MYSQL_QUERY_TIMEOUT_MS`.
 5. Pool is bounded (`queueLimit`), resets connections on release, and never enables `multipleStatements`.
-6. `mysql_query` truncates results at 10,000 rows **after** fetch - callers should still use `LIMIT`.
+6. `mysql_query` streams results and aborts the query once `MYSQL_MAX_ROWS` (default 10,000) is exceeded, so oversized result sets are never fully fetched.
 
 The real security boundary is the MySQL account: use a `SELECT`-only user.
 

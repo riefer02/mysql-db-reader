@@ -3,6 +3,7 @@ import {
   shapeResult,
   buildPoolConfig,
   envInt,
+  maxRowsFromEnv,
   DEFAULT_MAX_ROWS,
 } from "../src/lib/sql";
 
@@ -28,8 +29,33 @@ describe("shapeResult", () => {
     });
   });
 
+  it("annotates when truncation is signalled explicitly (streaming)", () => {
+    // Streaming stops at exactly the cap, so length alone can't signal it.
+    const rows = Array.from({ length: 3 }, (_, i) => ({ id: i }));
+    expect(shapeResult(rows, 3, true)).toEqual({
+      rows,
+      truncated: true,
+      rowsReturned: 3,
+      maxRows: 3,
+    });
+  });
+
   it("exposes a 10k default", () => {
     expect(DEFAULT_MAX_ROWS).toBe(10_000);
+  });
+});
+
+describe("maxRowsFromEnv", () => {
+  it("defaults to 10k", () => {
+    expect(maxRowsFromEnv({})).toBe(10_000);
+  });
+
+  it("honours MYSQL_MAX_ROWS", () => {
+    expect(maxRowsFromEnv({ MYSQL_MAX_ROWS: "25" })).toBe(25);
+  });
+
+  it("ignores invalid values", () => {
+    expect(maxRowsFromEnv({ MYSQL_MAX_ROWS: "lots" })).toBe(10_000);
   });
 });
 

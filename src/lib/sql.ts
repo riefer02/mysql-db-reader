@@ -212,14 +212,16 @@ export interface TruncatedResult {
 }
 
 /**
- * Applies the row cap to already-fetched rows and annotates the result when
- * truncation happened.
+ * Applies the row cap to rows and annotates the result when truncation
+ * happened. Pass `truncated` explicitly when the caller already knows (e.g.
+ * streaming stopped early); otherwise it is inferred from the row count.
  */
 export function shapeResult(
   rows: Record<string, unknown>[],
-  maxRows: number = DEFAULT_MAX_ROWS
+  maxRows: number = DEFAULT_MAX_ROWS,
+  truncated: boolean = rows.length > maxRows
 ): Record<string, unknown>[] | TruncatedResult {
-  if (rows.length <= maxRows) return rows;
+  if (!truncated && rows.length <= maxRows) return rows;
   const limited = rows.slice(0, maxRows);
   return {
     rows: limited,
@@ -227,6 +229,13 @@ export function shapeResult(
     rowsReturned: limited.length,
     maxRows,
   };
+}
+
+/** Resolves the row cap, overridable with `MYSQL_MAX_ROWS`. */
+export function maxRowsFromEnv(
+  env: Record<string, string | undefined> = process.env
+): number {
+  return envInt(env.MYSQL_MAX_ROWS, DEFAULT_MAX_ROWS);
 }
 
 /** Reads a positive integer from an env-like map, falling back to `fallback`. */

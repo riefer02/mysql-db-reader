@@ -2,13 +2,11 @@ import { z } from "zod";
 import { type ToolMetadata, type InferSchema } from "xmcp";
 import {
   withReadOnlyConnection,
-  coerceRows,
+  streamQuery,
   shapeResult,
   assertReadOnlySql,
-  DEFAULT_MAX_ROWS,
+  maxRowsFromEnv,
 } from "../lib/mysql";
-
-const MAX_ROWS = DEFAULT_MAX_ROWS;
 
 export const schema = {
   sql: z
@@ -25,7 +23,7 @@ export const schema = {
 export const metadata: ToolMetadata = {
   name: "mysql_query",
   description:
-    "Run a read-only SQL query with optional positional parameters. For complex queries or when you need JOINs, aggregations, or filtering. Results are limited to 10,000 rows; use LIMIT for large tables.",
+    "Run a read-only SQL query with optional positional parameters. For complex queries or when you need JOINs, aggregations, or filtering. Results are streamed and capped (default 10,000 rows, configurable via MYSQL_MAX_ROWS); the query is aborted once the cap is exceeded.",
   annotations: {
     title: "MySQL: Query (read-only)",
     readOnlyHint: true,
@@ -40,10 +38,15 @@ export default async function query({
   params,
 }: InferSchema<typeof schema>) {
   assertReadOnlySql(sql);
+  const maxRows = maxRowsFromEnv();
   return withReadOnlyConnection(async (conn) => {
-    const [rows] = await conn.query(sql, params ?? []);
-    const data = Array.isArray(rows) ? coerceRows(rows as unknown[]) : rows;
-    const result = Array.isArray(data) ? shapeResult(data, MAX_ROWS) : data;
+    const { rows, truncated } = await streamQuery(
+      conn,
+      sql,
+      params ?? [],
+      maxRows
+    );
+    const result = shapeResult(rows, maxRows, truncated);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   });
 }
