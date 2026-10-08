@@ -4,6 +4,7 @@ import {
   withReadOnlyConnection,
   coerceRows,
   assertSafeIdentifier,
+  buildOrderBy,
 } from "../lib/mysql";
 
 export const schema = {
@@ -35,18 +36,6 @@ export const metadata: ToolMetadata = {
   },
 };
 
-function buildOrderBy(orderBy?: string): string | null {
-  if (!orderBy || !orderBy.trim()) return null;
-  const parts = orderBy.trim().split(/\s+/);
-  const column = parts[0];
-  if (!column) return null;
-  const dir = (parts[1] || "ASC").toUpperCase();
-  assertSafeIdentifier(column, "column");
-  if (dir !== "ASC" && dir !== "DESC")
-    throw new Error("Invalid sort direction");
-  return `ORDER BY \`${column}\` ${dir}`;
-}
-
 export default async function previewTable({
   database,
   table,
@@ -59,7 +48,7 @@ export default async function previewTable({
   return withReadOnlyConnection(async (conn) => {
     const sql = `SELECT * FROM \`${database}\`.\`${table}\` ${order} LIMIT ?`;
     const [rows] = await conn.query(sql, [limit]);
-    const data = coerceRows(rows as any[]);
+    const data = coerceRows(rows as unknown[]);
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
   });
 }

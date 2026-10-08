@@ -30,14 +30,14 @@ export const metadata: ToolMetadata = {
 export default async function explainQuery({
   sql,
 }: InferSchema<typeof schema>) {
-  const normalized = sql.trim().toLowerCase();
-  if (!normalized.startsWith("select") && !normalized.startsWith("with")) {
+  const trimmed = assertReadOnlySql(sql);
+  const firstWord = trimmed.split(/\s+/)[0]?.toLowerCase() ?? "";
+  if (firstWord !== "select" && firstWord !== "with") {
     throw new Error("Only SELECT/CTE queries can be explained");
   }
-  assertReadOnlySql(sql);
   return withReadOnlyConnection(async (conn) => {
-    const [rows] = await conn.query(`EXPLAIN ${sql}`);
-    const data = coerceRows(rows as any[]);
+    const [rows] = await conn.query(`EXPLAIN ${trimmed}`);
+    const data = coerceRows(rows as unknown[]);
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
   });
 }

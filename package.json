@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "description": "Read-only MySQL MCP server — list databases/tables, inspect schemas, run SELECT queries",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "bin": {
     "mysql-db-reader": "dist/stdio.js"
@@ -17,14 +18,20 @@
     "build": "xmcp build",
     "postbuild": "node -e \"const fs=require('fs'),f='dist/stdio.js',c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\" && chmod +x dist/stdio.js",
     "dev": "xmcp dev",
-    "start": "node dist/http.js"
+    "start": "node dist/http.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "mysql2": "^3.14.3",
+    "mysql2": "^3.24.5",
     "xmcp": "^0.1.9",
     "zod": "3.24.4"
   },
   "devDependencies": {
-    "swc-loader": "^0.2.6"
+    "@types/node": "^26.6.4",
+    "swc-loader": "^0.2.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   }
 }

@@ -1,15 +1,19 @@
 {
   "compilerOptions": {
-    "target": "es2016",
-    "module": "commonjs",
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "rootDir": "./src"
+    "resolveJsonModule": true,
+    "types": ["node"]
   },
   "include": [
     "xmcp-env.d.ts",
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.mts"
   ]
 }

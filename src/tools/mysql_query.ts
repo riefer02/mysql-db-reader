@@ -3,10 +3,12 @@ import { type ToolMetadata, type InferSchema } from "xmcp";
 import {
   withReadOnlyConnection,
   coerceRows,
+  shapeResult,
   assertReadOnlySql,
+  DEFAULT_MAX_ROWS,
 } from "../lib/mysql";
 
-const MAX_ROWS = 10000;
+const MAX_ROWS = DEFAULT_MAX_ROWS;
 
 export const schema = {
   sql: z
@@ -40,12 +42,8 @@ export default async function query({
   assertReadOnlySql(sql);
   return withReadOnlyConnection(async (conn) => {
     const [rows] = await conn.query(sql, params ?? []);
-    const data = Array.isArray(rows) ? coerceRows(rows as any[]) : rows;
-    const limited = Array.isArray(data) ? data.slice(0, MAX_ROWS) : data;
-    const truncated = Array.isArray(data) && data.length > MAX_ROWS;
-    const result = truncated
-      ? { rows: limited, truncated: true, totalReturned: data.length }
-      : limited;
+    const data = Array.isArray(rows) ? coerceRows(rows as unknown[]) : rows;
+    const result = Array.isArray(data) ? shapeResult(data, MAX_ROWS) : data;
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   });
 }

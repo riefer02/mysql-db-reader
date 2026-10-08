@@ -4,7 +4,7 @@ Read-only MySQL tools for `xmcp`. Connect via a connection-string env var; all o
 
 ### Prerequisites
 
-- Node 20+
+- Node 22+
 - pnpm
 
 ### Install & build
@@ -12,6 +12,8 @@ Read-only MySQL tools for `xmcp`. Connect via a connection-string env var; all o
 ```bash
 pnpm i
 pnpm build
+pnpm test        # unit tests (integration tests self-skip without a DB)
+pnpm typecheck
 ```
 
 ### Configure database connection
@@ -35,6 +37,26 @@ export MYSQL_SSL=true    # tunnel / hosted DB (default)
 export MYSQL_SSL=strict  # direct connection, valid cert
 export MYSQL_SSL=false   # local dev, no SSL
 ```
+
+**Use a MySQL account granted `SELECT` only** (ideally per-schema). The SQL
+guards and session settings below are guardrails, not a security boundary—the
+account's grants and the engine-level read-only transaction are.
+
+Optional tuning (all have safe defaults):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MYSQL_QUERY_TIMEOUT_MS` | `30000` | Per-request time limit; the connection is dropped if exceeded |
+| `MYSQL_CONNECTION_LIMIT` | `3` | Max pooled connections |
+| `MYSQL_QUEUE_LIMIT` | `5` | Max requests waiting for a connection (bounded) |
+| `MYSQL_IDLE_TIMEOUT_MS` | `60000` | Idle connection timeout |
+| `MYSQL_CONNECT_TIMEOUT_MS` | `10000` | TCP connect timeout |
+| `HOST` | `127.0.0.1` | HTTP bind address (keep loopback unless you add auth) |
+| `PORT` | `3001` | HTTP port |
+
+`HOST`/`PORT` are resolved at **build time** (xmcp bakes its config into
+`dist`). For a production build: `HOST=0.0.0.0 PORT=8080 pnpm build`. Browsers
+are denied cross-origin access to the HTTP endpoint by default.
 
 ### Use in Cursor (STDIO)
 
@@ -68,18 +90,15 @@ export MYSQL_SSL=false   # local dev, no SSL
 
 ### Use via HTTP (optional)
 
+The HTTP server binds to `127.0.0.1:3001` by default and has **no
+authentication**. Use it locally only; to expose it remotely, put
+authentication and TLS in front of it, and rebuild with `HOST` set.
+
 ```bash
 pnpm dev
 ```
 
-Then point your MCP client to `http://localhost:3002/mcp`.
-
-To use a different port (e.g., 3001):
-
-```bash
-export MYSQL_URL="mysql://user:password@localhost:3306/mydb"
-PORT=3001 pnpm dev
-```
+Then point your MCP client to `http://127.0.0.1:3001/mcp`.
 
 Example HTTP client config (TOML):
 
@@ -99,10 +118,35 @@ project = "/ABSOLUTE/PATH/TO/your/project"
 - `mysql_query(sql, params?)` — read-only SQL (SELECT/SHOW/DESC/EXPLAIN/WITH), max 10k rows
 - `mysql_explain_query(sql)` — EXPLAIN a SELECT
 
+### Safety
+
+Read-only access is enforced in layers:
+
+1. **Guards** (`src/lib/sql.ts`) — only `SELECT`/`SHOW`/`DESCRIBE`/`DESC`/`EXPLAIN`/`WITH`
+   statements are accepted, and unsafe constructs are rejected: `INTO OUTFILE/DUMPFILE`,
+   `INTO @var`, `FOR UPDATE`/`FOR SHARE`/`LOCK IN SHARE MODE`, `EXPLAIN ANALYZE`,
+   `SLEEP`/`BENCHMARK`/`GET_LOCK`/`LOAD_FILE`, and stacked (multi-)statements.
+   Identifiers are validated against an allowlist before being quoted.
+2. **Engine-level read-only transaction** (`src/lib/mysql.ts`) — each operation
+   runs inside `START TRANSACTION READ ONLY`, plus best-effort `SQL_SAFE_UPDATES`
+   and `MAX_EXECUTION_TIME`.
+3. **Time and resource limits** — a wall-clock timeout aborts runaway queries
+   (dropping the connection), the wait queue is bounded, and connections are reset
+   on release to avoid session-state bleed.
+4. **Account grants** — point the server at a `SELECT`-only MySQL user.
+
+The `mysql_query` row cap (10,000) is applied after rows are fetched, so always
+add a `LIMIT` to queries against large tables.
+
+### Tests
+
+```bash
+pnpm test                                              # unit tests
+MYSQL_TEST_URL="mysql://reader:pass@localhost:3306/db" pnpm test   # + integration
+```
+
 ### Codex compatibility
 
 Tool names use lowercase snake_case (underscores, no dots) to comply with Codex's tool name pattern `^[a-zA-Z0-9_-]+$` (Codex models prefer lower_snake). See: [MCP in Codex docs](https://github.com/openai/codex/blob/main/docs/advanced.md#model-context-protocol-mcp)
-
-Read-only is enforced via session settings and SQL guards.
 
 Docs: [xmcp docs](https://xmcp.dev/docs)

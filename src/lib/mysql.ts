@@ -1,4 +1,11 @@
 import mysql, { type Pool, type PoolConnection } from "mysql2/promise";
+import {
+  buildPoolConfig,
+  envInt,
+  DEFAULT_QUERY_TIMEOUT_MS,
+} from "./sql";
+
+export * from "./sql";
 
 const DEFAULT_ENV_KEYS = [
   "MYSQL_URL",
@@ -20,136 +27,96 @@ function getConnectionString(): string {
   );
 }
 
-const QUERY_TIMEOUT_MS = 30_000;
-
 export function getReadOnlyPool(): Pool {
   if (pool) return pool;
   const connectionString = getConnectionString();
-  // MYSQL_SSL controls TLS behavior:
-  //   "true"   (default) — encrypt but skip cert hostname validation (use when connecting through a tunnel or proxy)
-  //   "strict"           — encrypt and validate the server certificate (direct connections with valid cert)
-  //   "false"            — no SSL (local dev only)
-  const mysqlSsl = (process.env.MYSQL_SSL ?? "true").toLowerCase();
-  const ssl =
-    mysqlSsl === "false"  ? undefined :
-    mysqlSsl === "strict" ? { rejectUnauthorized: true } :
-                            { rejectUnauthorized: false };
-  pool = mysql.createPool({
-    uri: connectionString,
-    connectionLimit: 3,         // sequential AI tool — 3 is plenty
-    connectTimeout: 10_000,     // fail fast if DB is unreachable
-    waitForConnections: true,
-    queueLimit: 5,              // fail fast beyond 5 queued; 0 = unbounded
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 5_000,
-    namedPlaceholders: true,
-    // Defense-in-depth: never allow ;-stacked statements (e.g. "SELECT 1; DELETE ...").
-    // This is the mysql2 default, but we pin it so a future change can't silently open
-    // the door to stacked-query injection.
-    multipleStatements: false,
-    ssl,
-  } as any);
+  // `as any`: mysql2's PoolOptions typing does not expose `uri` here, though
+  // the implementation supports it.
+  pool = mysql.createPool(buildPoolConfig(connectionString) as any);
   return pool;
 }
 
+/** Closes the shared pool. Intended for process shutdown and tests. */
+export async function closePool(): Promise<void> {
+  if (!pool) return;
+  const current = pool;
+  pool = null;
+  await current.end();
+}
+
+export function queryTimeoutMs(): number {
+  return envInt(process.env.MYSQL_QUERY_TIMEOUT_MS, DEFAULT_QUERY_TIMEOUT_MS);
+}
+
+/**
+ * Best-effort session settings. None of these is the security boundary (that is
+ * the SQL guard plus a `SELECT`-only account plus the read-only transaction), so
+ * failures are ignored to stay compatible with proxies and non-MySQL variants.
+ */
+async function applySessionHardening(
+  conn: PoolConnection,
+  timeoutMs: number
+): Promise<void> {
+  const statements = [
+    "SET SESSION SQL_SAFE_UPDATES = 1",
+    `SET SESSION MAX_EXECUTION_TIME = ${timeoutMs}`,
+  ];
+  for (const statement of statements) {
+    try {
+      await conn.query(statement);
+    } catch {}
+  }
+}
+
+/**
+ * Runs `fn` against a hardened connection.
+ *
+ * Read-only is enforced at the engine level with `START TRANSACTION READ ONLY`
+ * (fails loudly, unlike a session flag). A wall-clock timeout destroys the
+ * connection — freeing the pool slot even if the server is unresponsive —
+ * rather than returning a poisoned connection to the pool.
+ */
 export async function withReadOnlyConnection<T>(
   fn: (conn: PoolConnection) => Promise<T>
 ): Promise<T> {
   const p = getReadOnlyPool();
   const conn = await p.getConnection();
+  const timeoutMs = queryTimeoutMs();
+
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    // destroy() closes the socket and removes the connection from the pool,
-    // freeing the slot even if the DB is unresponsive.
-    conn.destroy();
-  }, QUERY_TIMEOUT_MS);
+    try {
+      conn.destroy();
+    } catch {}
+  }, timeoutMs);
+
   try {
-    await conn.query("SET SESSION SQL_SAFE_UPDATES = 1");
-    // START TRANSACTION READ ONLY enforces read-only at the engine level for this operation.
-    // Supported since MySQL 5.6 / MariaDB 10.0.
+    await applySessionHardening(conn, timeoutMs);
+    // Engine-level read-only enforcement for this operation (MySQL 5.6+ /
+    // MariaDB 10.0+). The SQL guard is still the first line of defence.
     await conn.query("START TRANSACTION READ ONLY");
     try {
       const result = await fn(conn);
-      clearTimeout(timer);
       await conn.query("ROLLBACK");
       return result;
     } catch (err) {
-      if (timedOut) throw new Error(`Query timed out after ${QUERY_TIMEOUT_MS / 1000}s`);
-      try { await conn.query("ROLLBACK"); } catch {}
+      if (timedOut) {
+        throw new Error(
+          `Query exceeded the ${timeoutMs}ms time limit and was aborted.`
+        );
+      }
+      try {
+        await conn.query("ROLLBACK");
+      } catch {}
       throw err;
     }
   } finally {
     clearTimeout(timer);
-    if (!timedOut) conn.release();
-  }
-}
-
-// Neutralize comment-based obfuscation before running read-only checks.
-// MySQL *executes* the contents of executable comments (/*! ... */), and an inline
-// comment can sit between tokens (e.g. INTO/**/OUTFILE), so a naive keyword/whitespace
-// regex on the raw SQL is bypassable. We unwrap executable comments (keep their SQL) and
-// strip ordinary comments, so the assertions below see the SQL the server actually runs.
-function stripSqlComments(sql: string): string {
-  return sql
-    // Unwrap executable comments: keep inner SQL, drop the /*! [version] and */ markers.
-    .replace(/\/\*!(?:\d+)?([\s\S]*?)\*\//g, " $1 ")
-    // Remove ordinary block comments entirely.
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    // Remove line comments ("-- " to EOL, and "#" to EOL).
-    .replace(/--\s[^\n]*/g, " ")
-    .replace(/#[^\n]*/g, " ");
-}
-
-export function assertReadOnlySql(sql: string): void {
-  const normalized = stripSqlComments(sql).trim().toLowerCase();
-  const firstWord = normalized.split(/\s+/)[0] ?? "";
-  const allowedFirst = [
-    "select",
-    "show",
-    "describe",
-    "desc",
-    "explain",
-    "with",
-  ];
-  if (!allowedFirst.includes(firstWord)) {
-    throw new Error(
-      `Only read-only queries are allowed. Query must start with one of: ${allowedFirst.join(
-        ", "
-      )}`
-    );
-  }
-  // Block SELECT INTO OUTFILE / DUMPFILE which can write server-side files.
-  if (/\binto\s+(outfile|dumpfile)\b/.test(normalized)) {
-    throw new Error("SELECT INTO OUTFILE/DUMPFILE is not allowed.");
-  }
-  // For CTEs (WITH), the terminal statement must be a SELECT with no DML.
-  if (firstWord === "with") {
-    const lowered = normalized.replace(/\s+/g, " ");
-    if (
-      !/\bselect\b/.test(lowered) ||
-      /\b(insert|update|delete|replace)\b/.test(lowered)
-    ) {
-      throw new Error(
-        "WITH queries must be read-only and include SELECT only."
-      );
+    if (!timedOut) {
+      try {
+        conn.release();
+      } catch {}
     }
   }
-}
-
-export function assertSafeIdentifier(value: string, kind: string): void {
-  if (!/^[A-Za-z0-9_]+$/.test(value)) {
-    throw new Error(`Invalid ${kind} identifier: ${value}`);
-  }
-}
-
-export function coerceRows(rows: any[]): any[] {
-  return rows.map((row) => {
-    const coerced: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(row)) {
-      if (typeof v === "bigint") coerced[k] = v.toString();
-      else coerced[k] = v as unknown;
-    }
-    return coerced;
-  });
 }
